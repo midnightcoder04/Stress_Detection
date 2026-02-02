@@ -1,0 +1,2347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Stress Detection</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://docs.opencv.org/4.8.0/opencv.js" onload="onOpenCVLoad()"></script>
+    <style>
+        :root {
+            /* Color Palette */
+            --primary: #6366f1;
+            --primary-dark: #4f46e5;
+            --primary-light: #a5b4fc;
+            --secondary: #f1f5f9;
+            --accent: #06b6d4;
+            --accent-light: #67e8f9;
+            --neutral-50: #f8fafc;
+            --neutral-100: #f1f5f9;
+            --neutral-200: #e2e8f0;
+            --neutral-300: #cbd5e1;
+            --neutral-400: #94a3b8;
+            --neutral-500: #64748b;
+            --neutral-600: #475569;
+            --neutral-700: #334155;
+            --neutral-800: #1e293b;
+            --neutral-900: #0f172a;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --error: #ef4444;
+            --white: #ffffff;
+            
+            /* Spacing */
+
+            --space-xs: clamp(0.125rem, 0.25vw, 0.25rem);
+            --space-sm: clamp(0.25rem, 0.5vw, 0.5rem);
+            --space-md: clamp(0.5rem, 1vw, 0.75rem);
+            --space-lg: clamp(0.75rem, 1.5vw, 1rem);
+            --space-xl: clamp(1rem, 2vw, 1.5rem);
+
+
+            
+            /* Typography */
+
+            --font-size-xs: clamp(0.5625rem, 1.125vw, 0.65625rem);
+            --font-size-sm: clamp(0.65625rem, 1.3125vw, 0.75rem);
+            --font-size-base: clamp(0.75rem, 1.5vw, 0.84375rem);
+            --font-size-lg: clamp(0.84375rem, 1.6875vw, 0.9375rem);
+            --font-size-xl: clamp(0.9375rem, 1.875vw, 1.125rem);
+            --font-size-2xl: clamp(1.125rem, 2.25vw, 1.5rem);
+            --font-size-3xl: clamp(1.5rem, 3vw, 1.875rem);
+            --font-size-4xl: clamp(1.875rem, 3.75vw, 2.25rem);
+
+
+            
+            /* Shadows */
+            --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+            --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+            
+            /* Border Radius */
+            --radius-sm: 0.375rem;
+            --radius-md: 0.5rem;
+            --radius-lg: 0.75rem;
+            --radius-xl: 1rem;
+            --radius-2xl: 1.5rem;
+            
+            /* Transitions */
+            --transition-fast: 150ms ease-in-out;
+            --transition-normal: 300ms ease-in-out;
+            --transition-slow: 500ms ease-in-out;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html {
+            scroll-behavior: smooth;
+            height: 100%;
+        }
+
+        body {
+            font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background: linear-gradient(135deg, var(--neutral-50) 0%, var(--neutral-100) 100%);
+            height: 100vh;
+            line-height: 1.6;
+            color: var(--neutral-700);
+            overflow: hidden;
+            margin: 0;
+            padding: 0;
+        }
+
+        .container {
+            width: 100vw;
+            height: 100vh;
+            margin: 0;
+            background: var(--white);
+            border-radius: 0;
+            box-shadow: none;
+            overflow: hidden;
+            animation: slideInUp 0.8s var(--transition-normal);
+            display: flex;
+            flex-direction: column;
+            max-width: none;
+        }
+
+        @keyframes slideInUp {
+            from {
+                opacity: 0;
+                transform: translateY(60px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        @keyframes slideInLeft {
+            from {
+                opacity: 0;
+                transform: translateX(-30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        @keyframes slideInRight {
+            from {
+                opacity: 0;
+                transform: translateX(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+
+        @keyframes bounce {
+            0%, 20%, 53%, 80%, 100% { transform: translate3d(0,0,0); }
+            40%, 43% { transform: translate3d(0,-8px,0); }
+            70% { transform: translate3d(0,-4px,0); }
+            90% { transform: translate3d(0,-2px,0); }
+        }
+
+        .header {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+            color: var(--white);
+            padding: var(--space-lg) var(--space-xl);
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+            border-radius: 0;
+            height: 100px;
+            flex-shrink: 0;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+
+        .header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(45deg, transparent 30%, rgba(255,255,255,0.1) 50%, transparent 70%);
+            animation: shimmer 3s infinite;
+        }
+
+        @keyframes shimmer {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
+        }
+
+        .header h1 {
+            font-size: 28px;
+            font-weight: 700;
+            margin: 0 0 var(--space-xs) 0;
+            position: relative;
+            z-index: 1;
+            animation: slideInLeft 0.8s var(--transition-normal);
+            line-height: 1.2;
+        }
+
+        .header p {
+            font-size: var(--font-size-lg);
+            opacity: 0.9;
+            position: relative;
+            z-index: 1;
+            animation: slideInRight 0.8s var(--transition-normal) 0.2s both;
+            margin: 0;
+            line-height: 1.3;
+        }
+
+        .header-controls {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .header-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+        }
+        .emotion-section-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: var(--space-sm);
+            z-index: 1;
+        }
+
+        .face-status {
+            margin: 0;
+            text-align: right;
+            animation: fadeIn 0.6s var(--transition-normal);
+        }
+        
+
+        .main-content {
+            display: grid;
+            grid-template-columns: 40% 60%; /* 40% stress, 60% emotion */
+            gap: 8px;
+            padding: 8px;
+            padding-right: 308px; /* Make room for results dock on larger screens */
+            flex: 1;
+            min-height: 0;
+            overflow: hidden;
+            position: relative;
+        } 
+
+        @media (min-width: 768px) {
+            .main-content {
+                grid-template-columns: 45% 55%; /* 40% stress, 60% emotion */
+            }
+        }
+
+        @media (min-width: 1024px) {
+            .main-content {
+                grid-template-columns: 45% 55%;/* 40% stress, 60% emotion */
+            }
+        }
+
+        .stress-section, .emotion-section {
+            background: var(--neutral-50);
+            border-radius: var(--radius-xl);
+            padding: 12px;
+            border: 1px solid var(--neutral-200);
+            transition: all var(--transition-normal);
+            animation: fadeIn 0.6s var(--transition-normal);
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+            overflow: hidden;
+        }
+
+        .stress-section:hover, .emotion-section:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-lg);
+            border-color: var(--primary-light);
+        }
+
+        .results-section {
+            padding: 8px;
+            text-align: center;
+            border-top: 1px solid var(--neutral-200);
+            background: var(--neutral-50);
+            display: flex;
+            gap: var(--space-sm);
+            justify-content: center;
+            flex-wrap: wrap;
+            border-radius: 0;
+            flex-shrink: 0;
+            overflow: hidden;
+        }
+
+        @media (max-width: 768px) {
+            .results-section {
+                flex-direction: column;
+                align-items: center;
+            }
+            
+            .main-content {
+                gap: 6px;
+                padding: 6px;
+            }
+        }
+
+        .button-group {
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-xs);
+            justify-content: flex-end;
+            margin-top: auto;
+            flex-shrink: 0;
+        }
+
+        .button-row {
+            display: flex;
+            gap: var(--space-xs);
+            justify-content: center;
+        }
+
+        .btn-small {
+            padding: var(--space-xs) var(--space-sm);
+            font-size: var(--font-size-sm);
+            min-height: 32px;
+        }
+
+        .sample-section {
+            margin-top: var(--space-lg);
+            text-align: center;
+        }
+
+        .section-title {
+            font-size: var(--font-size-2xl);
+            font-weight: 600;
+            color: var(--neutral-800);
+            margin-bottom: var(--space-md);
+            display: flex;
+            align-items: center;
+            gap: var(--space-sm);
+            animation: slideInLeft 0.6s var(--transition-normal);
+        }
+
+        .section-title i {
+            color: var(--primary);
+            font-size: var(--font-size-xl);
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: var(--space-md);
+            margin-bottom: var(--space-lg);
+        }
+
+        @media (max-width: 768px) {
+            .form-row {
+                grid-template-columns: 1fr;
+                gap: var(--space-sm);
+            }
+        }
+
+        .form-group {
+            margin-bottom: var(--space-lg);
+            animation: fadeIn 0.6s var(--transition-normal);
+        }
+
+        .form-row .form-group {
+            margin-bottom: 0;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: var(--space-sm);
+            font-weight: 500;
+            color: var(--neutral-700);
+            font-size: var(--font-size-sm);
+        }
+
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: var(--space-md);
+            border: 2px solid var(--neutral-300);
+            border-radius: var(--radius-lg);
+            font-size: var(--font-size-base);
+            background: var(--white);
+            color: var(--neutral-700);
+            transition: all var(--transition-fast);
+            box-shadow: var(--shadow-sm);
+        }
+
+        .form-group input:focus, .form-group select:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+            transform: translateY(-1px);
+        }
+
+        .form-group input:hover, .form-group select:hover {
+            border-color: var(--primary-light);
+        }
+
+        .camera-section {
+            margin-top: var(--space-xs);
+            text-align: center;
+            animation: slideInRight 0.6s var(--transition-normal) 0.3s both;
+            padding: var(--space-xs);
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            min-height: 0;
+            overflow: hidden;
+        }
+
+        #video {
+            width: 100%;
+            max-width: 400px;
+            border-radius: var(--radius-xl);
+            margin: 0 auto var(--space-xs) auto;
+            box-shadow: var(--shadow-lg);
+            transition: all var(--transition-normal);
+            flex-shrink: 0;
+            display: block;
+            max-height: 300px;
+            object-fit: cover;
+        }
+
+        #video:hover {
+            transform: scale(1.02);
+            box-shadow: var(--shadow-xl);
+        }
+
+        /* Preview image styling to match video element */
+        .camera-section img {
+            width: 100% !important;
+            max-width: 400px !important;
+            max-height: 300px !important;
+            border-radius: var(--radius-xl) !important;
+            margin: 0 auto var(--space-xs) auto !important;
+            box-shadow: var(--shadow-lg) !important;
+            display: block !important;
+            object-fit: cover !important;
+        }
+
+        #videoWrapper {
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-shrink: 0;
+            width: 100%;
+        }
+
+        #canvas {
+            display: none;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+            color: var(--white);
+            border: none;
+            padding: var(--space-sm) var(--space-md);
+            border-radius: var(--radius-lg);
+            font-size: var(--font-size-sm);
+            font-weight: 600;
+            cursor: pointer;
+            transition: all var(--transition-fast);
+            margin: var(--space-xs);
+            box-shadow: var(--shadow-md);
+            position: relative;
+            overflow: hidden;
+            display: inline-flex;
+            align-items: center;
+            gap: var(--space-xs);
+            min-height: 40px;
+        }
+
+        .btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+            transition: left var(--transition-normal);
+        }
+
+        .btn:hover::before {
+            left: 100%;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px) scale(1.02);
+            box-shadow: var(--shadow-xl);
+            background: linear-gradient(135deg, var(--primary-dark) 0%, var(--primary) 100%);
+        }
+
+        .btn:active {
+            transform: translateY(0) scale(0.98);
+            transition: all var(--transition-fast);
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+            background: var(--neutral-400);
+        }
+
+        .btn:disabled:hover {
+            transform: none;
+            box-shadow: var(--shadow-md);
+        }
+
+        .btn i {
+            font-size: var(--font-size-sm);
+        }
+        .results-container {
+            animation: fadeIn 0.8s var(--transition-normal);
+        }
+
+        .stress-result {
+            background: var(--white);
+            border-radius: var(--radius-xl);
+            padding: var(--space-xl);
+            margin-bottom: var(--space-lg);
+            text-align: center;
+            box-shadow: var(--shadow-md);
+            border: 1px solid var(--neutral-200);
+            transition: all var(--transition-normal);
+            animation: slideInUp 0.6s var(--transition-normal);
+        }
+
+        .stress-result:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-lg);
+        }
+
+        .stress-level {
+            font-size: var(--font-size-3xl);
+            font-weight: 700;
+            margin: var(--space-md) 0;
+            animation: pulse 2s infinite;
+        }
+
+        .stress-low { color: var(--success); }
+        .stress-Medium { color: var(--warning); }
+        .stress-high { color: var(--error); }
+
+        .emotion-bars {
+            margin-top: var(--space-lg);
+            animation: slideInUp 0.6s var(--transition-normal) 0.2s both;
+        }
+
+        .emotion-bar {
+            margin-bottom: var(--space-md);
+            animation: fadeIn 0.6s var(--transition-normal);
+        }
+
+        .emotion-label {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: var(--space-sm);
+            font-weight: 600;
+            color: var(--neutral-700);
+            font-size: var(--font-size-sm);
+        }
+
+        .progress-container {
+            background: var(--neutral-200);
+            border-radius: var(--radius-lg);
+            height: 24px;
+            overflow: hidden;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, var(--primary), var(--primary-light));
+            border-radius: var(--radius-lg);
+            transition: width 0.8s var(--transition-normal);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--white);
+            font-size: var(--font-size-xs);
+            font-weight: 600;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .progress-bar::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+            animation: shimmer 2s infinite;
+        }
+
+        .face-status {
+            margin: var(--space-md) 0;
+            text-align: center;
+            animation: fadeIn 0.6s var(--transition-normal);
+        }
+
+        .face-indicator {
+            display: inline-block;
+            padding: var(--space-sm) var(--space-md);
+            border-radius: var(--radius-2xl);
+            font-weight: 600;
+            font-size: var(--font-size-sm);
+            margin: 0 var(--space-xs);
+            transition: all var(--transition-fast);
+            animation: bounce 0.6s var(--transition-normal);
+        }
+
+        #faceDetected {
+            background: linear-gradient(135deg, var(--success), #059669);
+            color: var(--white);
+            border: 2px solid var(--success);
+            box-shadow: var(--shadow-md);
+        }
+
+        #noFaceDetected {
+            background: linear-gradient(135deg, var(--error), #dc2626);
+            color: var(--white);
+            border: 2px solid var(--error);
+            box-shadow: var(--shadow-md);
+        }
+
+        .face-indicator:hover {
+            transform: scale(1.05);
+            box-shadow: var(--shadow-lg);
+        }
+
+
+        .results-container {
+            display: none;
+        }
+
+        .stress-result {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+            text-align: center;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+
+        .stress-level {
+            font-size: 2rem;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+
+        .stress-low { color: #28a745; }
+        .stress-Medium { color: #ffc107; }
+        .stress-high { color: #dc3545; }
+
+        .emotion-bars {
+            margin-top: 20px;
+        }
+
+        .demo-gallery {
+            margin-top: 16px;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+            gap: 10px;
+        }
+        .demo-thumb {
+            position: relative;
+            border-radius: 10px;
+            overflow: hidden;
+            cursor: pointer;
+            border: 2px solid #e1e5e9;
+            transition: transform 0.2s, box-shadow 0.3s;
+        }
+        .demo-thumb:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(102,126,234,0.18);
+        }
+        .demo-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+        .demo-label {
+            position: absolute; bottom: 6px; left: 6px; right: 6px;
+            background: rgba(0,0,0,0.5); color: #fff; font-size: 12px; padding: 4px 6px; border-radius: 6px;
+            text-align: center;
+        }
+
+        .emotion-bar {
+            margin-bottom: 15px;
+        }
+
+        .emotion-label {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+            font-weight: 600;
+        }
+
+        .progress-container {
+            background: #e1e5e9;
+            border-radius: 10px;
+            height: 20px;
+            overflow: hidden;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            border-radius: 10px;
+            transition: width 0.5s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .loading {
+            text-align: center;
+            padding: var(--space-xl);
+            color: var(--neutral-600);
+            font-size: var(--font-size-lg);
+            animation: pulse 1.5s infinite;
+        }
+
+        .loading i {
+            color: var(--primary);
+            margin-right: var(--space-sm);
+        }
+
+        .error {
+            background: linear-gradient(135deg, #fef2f2, #fee2e2);
+            color: var(--error);
+            padding: var(--space-md);
+            border-radius: var(--radius-lg);
+            margin: var(--space-md) 0;
+            border: 1px solid #fecaca;
+            box-shadow: var(--shadow-sm);
+            animation: slideInUp 0.6s var(--transition-normal);
+        }
+
+        .demo-gallery {
+            margin-top: var(--space-lg);
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: var(--space-md);
+            animation: fadeIn 0.6s var(--transition-normal) 0.4s both;
+        }
+
+        .demo-thumb {
+            position: relative;
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+            cursor: pointer;
+            border: 2px solid var(--neutral-300);
+            transition: all var(--transition-normal);
+            aspect-ratio: 1;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .demo-thumb:hover {
+            transform: translateY(-4px) scale(1.05);
+            box-shadow: var(--shadow-xl);
+            border-color: var(--primary);
+        }
+
+        .demo-thumb img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transition: transform var(--transition-normal);
+        }
+
+        .demo-thumb:hover img {
+            transform: scale(1.1);
+        }
+
+        .demo-label {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: linear-gradient(transparent, rgba(0,0,0,0.8));
+            color: var(--white);
+            font-size: var(--font-size-xs);
+            padding: var(--space-sm);
+            border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+            text-align: center;
+            font-weight: 600;
+        }
+
+        /* Responsive Design */
+        @media (max-width: 1024px) {
+            .container {
+                margin: 0;
+                border-radius: 0;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .main-content {
+                grid-template-columns: 1fr;
+                gap: 6px;
+                padding: 6px;
+            }
+            
+            .header {
+                padding: var(--space-sm);
+                height: 80px;
+            }
+            
+            .stress-section, .emotion-section, .results-section {
+                padding: 8px;
+            }
+            
+            .demo-gallery {
+                grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+                gap: var(--space-xs);
+            }
+        }
+
+        @media (max-width: 480px) {
+            .header {
+                height: 70px;
+                padding: var(--space-xs);
+            }
+            
+            .header h1 {
+                font-size: var(--font-size-2xl);
+            }
+            
+            .header p {
+                font-size: var(--font-size-sm);
+            }
+            
+            .btn {
+                padding: var(--space-xs) var(--space-sm);
+                font-size: var(--font-size-xs);
+                margin: 2px;
+                min-height: 32px;
+            }
+            
+            .demo-gallery {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            
+            .main-content {
+                gap: 4px;
+                padding: 4px;
+            }
+            
+            .stress-section, .emotion-section {
+                padding: 6px;
+            }
+            
+            /* Smaller preview images on mobile */
+            .camera-section img {
+                max-width: 300px !important;
+                max-height: 225px !important;
+            }
+        }
+
+        /* Compress spacing on short screens */
+        @media (max-height: 800px) {
+            .header { 
+                padding: var(--space-sm); 
+                height: 80px;
+            }
+            .main-content { 
+                gap: 6px; 
+                padding: 6px; 
+            }
+            .stress-section, .emotion-section, .results-section { 
+                padding: 8px; 
+            }
+        }
+        
+        @media (max-height: 650px) {
+            .header { 
+                padding: var(--space-xs); 
+                height: 70px;
+            }
+            .main-content { 
+                gap: 4px; 
+                padding: 4px; 
+            }
+            .stress-section, .emotion-section, .results-section { 
+                padding: 6px; 
+            }
+        }
+
+        /* Theme Toggle Styles */
+        .header-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: var(--space-sm);
+            position: relative;
+            z-index: 2;
+        }
+
+        .theme-toggle {
+            background: rgba(255, 255, 255, 0.2);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            color: white;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+        }
+
+        .theme-toggle:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: scale(1.1);
+        }
+
+        /* Dark Mode Styles */
+        [data-theme="dark"] {
+            --primary: #818cf8;
+            --primary-dark: #6366f1;
+            --primary-light: #a5b4fc;
+            --secondary: #1e293b;
+            --accent: #06b6d4;
+            --accent-light: #67e8f9;
+            --neutral-50: #0f172a;
+            --neutral-100: #1e293b;
+            --neutral-200: #334155;
+            --neutral-300: #475569;
+            --neutral-400: #64748b;
+            --neutral-500: #94a3b8;
+            --neutral-600: #cbd5e1;
+            --neutral-700: #e2e8f0;
+            --neutral-800: #f1f5f9;
+            --neutral-900: #f8fafc;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --error: #ef4444;
+            --white: #1e293b;
+        }
+
+        [data-theme="dark"] body {
+            background: linear-gradient(135deg, var(--neutral-50) 0%, var(--neutral-100) 100%);
+            color: var(--neutral-700);
+        }
+
+        [data-theme="dark"] .container {
+            background: var(--white);
+            box-shadow: none;
+        }
+
+        [data-theme="dark"] .header {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+        }
+
+        [data-theme="dark"] .stress-section,
+        [data-theme="dark"] .emotion-section,
+        [data-theme="dark"] .results-section {
+            background: var(--neutral-100);
+            border-color: var(--neutral-300);
+        }
+
+        [data-theme="dark"] .section-title {
+            color: var(--neutral-800);
+        }
+
+        [data-theme="dark"] .form-group label {
+            color: var(--neutral-600);
+        }
+
+        [data-theme="dark"] .form-group input,
+        [data-theme="dark"] .form-group select {
+            background: var(--neutral-200);
+            border-color: var(--neutral-400);
+            color: var(--neutral-800);
+        }
+
+        [data-theme="dark"] .form-group input:focus,
+        [data-theme="dark"] .form-group select:focus {
+            border-color: var(--primary);
+            background: var(--neutral-100);
+        }
+
+        [data-theme="dark"] .stress-result {
+            background: var(--neutral-200);
+            border-color: var(--neutral-300);
+        }
+
+        [data-theme="dark"] .stress-result h3 {
+            color: var(--neutral-800);
+        }
+
+        [data-theme="dark"] .stress-result p {
+            color: var(--neutral-600);
+        }
+
+        [data-theme="dark"] .emotion-label {
+            color: var(--neutral-700);
+        }
+
+        [data-theme="dark"] .progress-container {
+            background: var(--neutral-300);
+        }
+
+        [data-theme="dark"] .loading {
+            color: var(--neutral-500);
+        }
+
+        [data-theme="dark"] .error {
+            background: linear-gradient(135deg, #4a1a1a, #5a1a1a);
+            color: #fca5a5;
+            border-color: #6b2c2c;
+        }
+
+        [data-theme="dark"] .demo-thumb {
+            border-color: var(--neutral-400);
+        }
+
+        [data-theme="dark"] .demo-thumb:hover {
+            box-shadow: 0 8px 24px rgba(129, 140, 248, 0.3);
+        }
+
+        /* Popup Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(8px);
+            animation: fadeIn 0.3s var(--transition-normal);
+        }
+
+        .modal-content {
+            background-color: var(--white);
+            margin: 5% auto;
+            padding: var(--space-xl);
+            border-radius: var(--radius-2xl);
+            width: 90%;
+            max-width: 600px;
+            max-height: 80vh;
+            overflow-y: auto;
+            overflow-x: hidden;
+            box-shadow: var(--shadow-xl);
+            animation: slideInUp 0.4s var(--transition-normal);
+            border: 1px solid var(--neutral-200);
+        }
+
+        [data-theme="dark"] .modal-content {
+            background-color: var(--neutral-100);
+            border-color: var(--neutral-300);
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: var(--space-lg);
+            padding-bottom: var(--space-md);
+            border-bottom: 2px solid var(--neutral-200);
+        }
+
+        [data-theme="dark"] .modal-header {
+            border-bottom-color: var(--neutral-300);
+        }
+
+        .modal-header h2 {
+            color: var(--neutral-800);
+            margin: 0;
+            font-size: var(--font-size-2xl);
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: var(--space-sm);
+        }
+
+        [data-theme="dark"] .modal-header h2 {
+            color: var(--neutral-800);
+        }
+
+        .close {
+            color: var(--neutral-500);
+            font-size: var(--font-size-2xl);
+            font-weight: bold;
+            cursor: pointer;
+            transition: all var(--transition-fast);
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: var(--radius-lg);
+        }
+
+        .close:hover {
+            color: var(--error);
+            background: var(--neutral-100);
+            transform: scale(1.1);
+        }
+
+        [data-theme="dark"] .close:hover {
+            color: var(--error);
+            background: var(--neutral-200);
+        }
+
+        /* Test Sample Button Styles */
+        .test-sample-section {
+            margin-top: var(--space-lg);
+            text-align: center;
+            animation: slideInUp 0.6s var(--transition-normal) 0.5s both;
+        }
+
+        .test-sample-dropdown {
+            display: none;
+            margin-top: var(--space-md);
+            padding: var(--space-lg);
+            background: var(--neutral-50);
+            border-radius: var(--radius-xl);
+            border: 2px solid var(--neutral-200);
+            animation: slideInUp 0.4s var(--transition-normal);
+        }
+
+        [data-theme="dark"] .test-sample-dropdown {
+            background: var(--neutral-100);
+            border-color: var(--neutral-300);
+        }
+
+        .sample-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: var(--space-md);
+        }
+
+        @media (max-width: 768px) {
+            .sample-grid {
+                grid-template-columns: repeat(2, 1fr);
+                gap: var(--space-sm);
+            }
+        }
+
+        @media (max-width: 480px) {
+            .sample-grid {
+                grid-template-columns: repeat(2, 1fr);
+                gap: var(--space-xs);
+            }
+        }
+
+        .sample-item {
+            position: relative;
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+            cursor: pointer;
+            border: 2px solid var(--neutral-300);
+            transition: all var(--transition-normal);
+            aspect-ratio: 1;
+            box-shadow: var(--shadow-sm);
+        }
+
+        [data-theme="dark"] .sample-item {
+            border-color: var(--neutral-400);
+        }
+
+        .sample-item:hover {
+            transform: translateY(-4px) scale(1.05);
+            box-shadow: var(--shadow-xl);
+            border-color: var(--primary);
+        }
+
+        .sample-item img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transition: transform var(--transition-normal);
+        }
+
+        .sample-item:hover img {
+            transform: scale(1.1);
+        }
+
+        .sample-item .sample-label {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: linear-gradient(transparent, rgba(0,0,0,0.8));
+            color: var(--white);
+            font-size: var(--font-size-xs);
+            padding: var(--space-sm);
+            border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+            text-align: center;
+            font-weight: 600;
+        }
+
+        /* --- Added: Results Dock & Gauge Styles --- */
+.results-dock {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 300px;
+  height: 100%;
+  background: var(--neutral-50);
+  border-left: 1px solid var(--neutral-200);
+  display: flex;
+  flex-direction: column;
+  padding: 12px 14px 18px 14px;
+  gap: 14px;
+  overflow-y: auto;
+  box-shadow: -4px 0 12px -6px rgba(0,0,0,0.08);
+  z-index: 50;
+}
+
+@media (max-width: 1150px) {
+  .results-dock { position: static; width: 100%; height: auto; flex-direction: row; flex-wrap: wrap; border-left: 0; border-top: 1px solid var(--neutral-200); box-shadow: 0 -4px 12px -6px rgba(0,0,0,0.06); padding: 12px; }
+  .results-dock > * { flex: 1 1 160px; }
+  .main-content { padding-right: 8px; }
+}
+
+.results-dock h4 { margin: 0 0 6px 0; font-size: 0.8rem; letter-spacing: 0.5px; text-transform: uppercase; font-weight: 600; color: var(--neutral-500); }
+.summary-card { background: var(--white); border:1px solid var(--neutral-200); border-radius: 14px; padding: 12px 14px 16px; position: relative; box-shadow: var(--shadow-sm); display: flex; flex-direction: column; gap: 6px; }
+.summary-card:hover { box-shadow: var(--shadow-md); }
+.badge-level { display:inline-flex; align-items:center; gap:6px; padding:4px 10px; border-radius: 999px; font-size:0.65rem; font-weight:600; letter-spacing:0.5px; }
+.badge-low { background:#ecfdf5; color:#059669; }
+.badge-medium { background:#fff7ed; color:#d97706; }
+.badge-high { background:#fef2f2; color:#b91c1c; }
+
+.gauge-wrapper { width: 130px; height:130px; margin: 2px auto 4px; position: relative; }
+.gauge { width:100%; height:100%; border-radius:50%; background: conic-gradient(var(--primary) 0deg, var(--primary-light) 0deg, var(--neutral-200) 0deg); display:flex; align-items:center; justify-content:center; position:relative; transition: background 0.6s ease; }
+.gauge::after { content:""; position:absolute; width:74%; height:74%; background: var(--white); border-radius:50%; box-shadow: inset 0 0 2px rgba(0,0,0,0.06); }
+.gauge-value { position:relative; font-size:1.3rem; font-weight:700; color: var(--neutral-700); }
+.gauge-sub { position: relative; font-size:0.6rem; font-weight:600; color: var(--neutral-400); margin-top: -2px; letter-spacing:0.5px; text-transform:uppercase; }
+
+.emotion-mini-list { display:flex; flex-direction:column; gap:6px; }
+.emotion-mini-item { display:flex; align-items:center; justify-content:space-between; font-size:0.7rem; font-weight:500; padding:4px 8px; border:1px solid var(--neutral-200); border-radius:8px; background: var(--neutral-100); }
+.emotion-bar-mini { height:4px; background: var(--primary-light); border-radius:4px; margin-top:4px; position:relative; overflow:hidden; }
+.emotion-bar-mini span { position:absolute; top:0; left:0; height:100%; background: var(--primary-dark); }
+
+.actions-stack { display:flex; flex-direction:column; gap:6px; }
+.actions-stack button { font-size:0.65rem; padding:8px 10px; width:100%; display:inline-flex; justify-content:center; align-items:center; gap:6px; letter-spacing:0.5px; text-transform:uppercase; font-weight:600; }
+.actions-stack button.secondary { background: var(--neutral-200); color: var(--neutral-700); }
+.actions-stack button.secondary:hover { background: var(--neutral-300); }
+
+/* Dark adjustments */
+[data-theme="dark"] .results-dock { background: #1f2937; border-left: 1px solid #374151; }
+[data-theme="dark"] .summary-card { background:#111827; border-color:#374151; }
+[data-theme="dark"] .emotion-mini-item { background:#1f2937; border-color:#374151; color:#e5e7eb; }
+[data-theme="dark"] .gauge::after { background:#111827; }
+[data-theme="dark"] .gauge-value { color:#e5e7eb; }
+[data-theme="dark"] .gauge-sub { color:#6b7280; }
+
+/* End Results Dock Styles */
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="header-top">
+                <h1><i class="fas fa-brain"></i> Smart Stress Detection</h1>
+                <div class="header-controls">
+                    <button id="themeToggle" class="theme-toggle" title="Toggle Dark/Light Mode">
+                        <i class="fas fa-moon"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="main-content">
+            <!-- Section 1: Stress Analysis -->
+            <div class="stress-section">
+                <h2 class="section-title">
+                    <i class="fas fa-heartbeat"></i> Stress Level Analysis
+                </h2>
+                
+                <form id="stressForm">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="age">Age</label>
+                            <input type="number" id="age" name="age" min="18" max="100" required>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="gender">Gender</label>
+                            <select id="gender" name="gender" required>
+                                <option value="">Select Gender</option>
+                                <option value="Male">Male</option>
+                                <option value="Female">Female</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="work">Work Hours (per week)</label>
+                            <input type="number" id="work" name="work" min="20" max="80" required>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="sleep">Sleep Hours (per night)</label>
+                            <input type="number" id="sleep" name="sleep" min="4" max="12" step="0.5" required>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="exercise">Exercise Level</label>
+                        <select id="exercise" name="exercise" required>
+                            <option value="">Select Exercise Level</option>
+                            <option value="Low">Low</option>
+                            <option value="Medium">Medium</option>
+                            <option value="High">High</option>
+                        </select>
+                    </div>
+
+                    <button type="submit" class="btn">
+                        <i class="fas fa-chart-line"></i> Predict Stress Level
+                    </button>
+                </form>
+
+                <!-- Inline Stress Results -->
+                <div id="stressResultsInline" class="stress-result" style="display: none; margin-top: 20px;"></div>
+
+            </div>
+
+            <!-- Section 2: Emotion Analysis -->
+            <div class="emotion-section">
+                <div class="emotion-section-content">
+                    <h2 class="section-title">
+                        <i class="fas fa-smile"></i> Facial Emotion Analysis
+                    </h2>
+                </div>
+                
+                <div class="camera-section">
+                   
+                    <div id="videoWrapper">
+                        <video id="video" autoplay></video>
+                        <canvas id="faceCanvas" style="position: absolute; top: 0; left: 0; pointer-events: none;"></canvas>
+                    </div>
+                    <canvas id="canvas"></canvas>
+                    
+                    <div class="button-group">
+                        <div class="button-row">
+                            <button id="startCamera" class="btn btn-small" title="Start your webcam">
+                                <i class="fas fa-video"></i> Start Camera
+                            </button>
+                            <button id="capturePhoto" class="btn btn-small" disabled title="Capture your face for analysis">
+                                <i class="fas fa-camera"></i> Capture Photo
+                            </button>
+                            <button id="analyzeEmotion" class="btn btn-small" disabled title="Analyze your facial emotions">
+                                <i class="fas fa-brain"></i> Analyze Emotions
+                            </button>
+                            <button id="uploadFileBtn" class="btn btn-small" style="background: linear-gradient(135deg, #667eea, #764ba2);" title="Upload an image from your device">
+                                <i class="fas fa-upload"></i> Upload Image
+                            </button>
+                            <button id="testSampleBtn" class="btn btn-small" style="background: linear-gradient(135deg, #4ecdc4, #44a08d);" title="Use sample images instead of camera">
+                                <i class="fas fa-images"></i> <span id="sampleBtnText">Sample Images</span>
+                            </button>
+                        </div>
+                        <!-- Hidden file input -->
+                        <input type="file" id="fileInput" accept="image/*" style="display: none;">
+                    </div>
+                </div>
+
+                <!-- Sample Images Section -->
+                <div class="sample-section">
+                    <!-- kept for compatibility but we now use a modal to display samples -->
+                    <div id="testSampleDropdown" class="test-sample-dropdown" style="display: none;">
+                        <!-- kept empty: samples are shown in a popup modal instead -->
+                    </div>
+                </div>
+
+                <!-- Inline Emotion Results -->
+                <div id="emotionResultsInline" style="display: none; margin-top: 20px;"></div>
+
+            </div>
+            <!-- Persistent Results Dock (inside main-content for positioning) -->
+            <aside class="results-dock" aria-label="Live Analysis Summary">
+              <div class="summary-card" id="summaryStressCard" aria-live="polite">
+                <h4>Stress Score</h4>
+                <div class="gauge-wrapper">
+                  <div class="gauge" id="stressGauge"><div class="gauge-value" id="stressGaugeValue">--</div></div>
+                </div>
+                <div class="gauge-sub">/100</div>
+                <div id="stressLevelBadge" class="badge-level badge-low" style="align-self:center;">LEVEL: --</div>
+              </div>
+              <div class="summary-card" id="summaryEmotionCard" aria-live="polite">
+                <h4>Top Emotions</h4>
+                <div id="emotionMiniList" class="emotion-mini-list" style="min-height:80px;">
+                  <div style="font-size:0.65rem; opacity:0.6;">No data yet</div>
+                </div>
+              </div>
+              <div class="summary-card">
+                <h4>Actions</h4>
+                <div class="actions-stack">
+                  <button type="button" id="qaCombined" class="btn" disabled><i class="fas fa-layer-group"></i> Combined Analysis</button>
+                  <button type="button" id="qaResetStress" class="btn secondary"><i class="fas fa-heartbeat"></i> Reset Stress</button>
+                  <button type="button" id="qaResetEmotion" class="btn secondary"><i class="fas fa-face-smile"></i> Reset Emotion</button>
+                  <button type="button" id="qaResetBoth" class="btn secondary"><i class="fas fa-rotate"></i> Reset Both</button>
+                </div>
+              </div>
+            </aside>
+        </div>
+
+        <!-- Loading and Error Messages -->
+        <div id="loading" class="loading" style="display: none;">
+            <i class="fas fa-spinner fa-spin"></i> Analyzing...
+        </div>
+
+        <div id="error" class="error" style="display: none;"></div>
+    </div>
+
+    <!-- Results Popup Modal -->
+    <div id="resultsModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2><i class="fas fa-chart-line"></i> Analysis Results</h2>
+                <span class="close">&times;</span>
+            </div>
+            <div id="modalResults">
+                <!-- Results will be displayed here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Sample Images Modal -->
+    <div id="sampleModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2><i class="fas fa-images"></i> Sample Images</h2>
+                <span class="close-sample">&times;</span>
+            </div>
+            <div id="sampleGrid" class="sample-grid">
+                <!-- Sample images will be loaded here -->
+            </div>
+        </div>
+    </div>
+
+    <footer>
+        &copy; 2025 Smart Stress Detection | Powered by AI & OpenCV
+    </footer>
+
+    <script>
+        let stream = null;
+        let capturedImage = null;
+        let faceDetectionInterval = null;
+        let faceCascade = null;
+        let profileCascade = null;
+        let isFaceDetectionActive = false;
+        let opencvReady = false;
+        let trackingPoints = [];
+        let prevGray = null;
+        let trackingBoxes = [];
+        let isTracking = false;
+
+        // DOM elements
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('canvas');
+        const startCameraBtn = document.getElementById('startCamera');
+        const capturePhotoBtn = document.getElementById('capturePhoto');
+        const analyzeEmotionBtn = document.getElementById('analyzeEmotion');
+        const stressForm = document.getElementById('stressForm');
+        const loading = document.getElementById('loading');
+        const error = document.getElementById('error');
+        const faceCanvas = document.getElementById('faceCanvas');
+        const faceStatus = document.getElementById('faceStatus');
+        const faceDetected = document.getElementById('faceDetected');
+        const noFaceDetected = document.getElementById('noFaceDetected');
+        const themeToggle = document.getElementById('themeToggle');
+        const testSampleBtn = document.getElementById('testSampleBtn');
+        const uploadFileBtn = document.getElementById('uploadFileBtn');
+        const fileInput = document.getElementById('fileInput');
+        const sampleBtnText = document.getElementById('sampleBtnText');
+        const testSampleDropdown = document.getElementById('testSampleDropdown');
+        const sampleGrid = document.getElementById('sampleGrid');
+        const resultsModal = document.getElementById('resultsModal');
+        const modalResults = document.getElementById('modalResults');
+        const closeModal = document.querySelector('.close');
+
+        // OpenCV loading callback
+        function onOpenCVLoad() {
+            console.log('OpenCV.js loaded successfully');
+            opencvReady = true;
+            // Face cascade loading is optional for this app
+            console.log('OpenCV ready for image processing');
+        }
+        
+        function loadFaceCascade() {
+            // Placeholder - face cascade loading not required for emotion detection
+            console.log('Face cascade loading skipped');
+        }
+
+        // Theme Toggle Functionality
+        function initTheme() {
+            const savedTheme = localStorage.getItem('theme') || 'light';
+            document.documentElement.setAttribute('data-theme', savedTheme);
+            updateThemeIcon(savedTheme);
+        }
+
+        function updateThemeIcon(theme) {
+            const icon = themeToggle.querySelector('i');
+            if (theme === 'dark') {
+                icon.className = 'fas fa-sun';
+            } else {
+                icon.className = 'fas fa-moon';
+            }
+        }
+
+        themeToggle.addEventListener('click', () => {
+            const currentTheme = document.documentElement.getAttribute('data-theme');
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            document.documentElement.setAttribute('data-theme', newTheme);
+            localStorage.setItem('theme', newTheme);
+            updateThemeIcon(newTheme);
+        });
+
+        // Test Sample Images Functionality (open modal)
+        const sampleModal = document.getElementById('sampleModal');
+        const sampleModalClose = document.querySelector('.close-sample');
+
+        testSampleBtn.addEventListener('click', () => {
+            sampleModal.style.display = 'block';
+            sampleBtnText.textContent = 'Hide Sample Images';
+            if (sampleGrid.children.length === 0) {
+                loadSampleImages();
+            }
+        });
+
+        sampleModalClose.addEventListener('click', () => {
+            sampleModal.style.display = 'none';
+            sampleBtnText.textContent = 'Show Sample Images';
+        });
+
+        // Close sample modal when clicking outside
+        window.addEventListener('click', (event) => {
+            if (event.target === sampleModal) {
+                sampleModal.style.display = 'none';
+                sampleBtnText.textContent = 'Show Sample Images';
+            }
+        });
+
+        // Helper function to convert blob to base64 data URL
+        function blobToDataURL(blob) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = reject;
+                reader.readAsDataURL(blob);
+            });
+        }
+
+        // Helper function to show error/success messages
+        function showError(message, isSuccess = false) {
+            error.textContent = message;
+            error.style.display = 'block';
+            if (isSuccess) {
+                error.style.background = 'linear-gradient(135deg, #d4edda, #c3e6cb)';
+                error.style.color = '#155724';
+                error.style.borderColor = '#c3e6cb';
+            } else {
+                error.style.background = 'linear-gradient(135deg, #fef2f2, #fee2e2)';
+                error.style.color = '#ef4444';
+                error.style.borderColor = '#fecaca';
+            }
+            setTimeout(() => {
+                error.style.display = 'none';
+            }, 3000);
+        }
+
+        async function loadSampleImages() {
+            try {
+                const response = await fetch('/emotion/list');
+                const data = await response.json();
+                const files = (data && data.images) || [];
+                
+                sampleGrid.innerHTML = '';
+                
+                files.forEach((file, index) => {
+                    const sampleItem = document.createElement('div');
+                    sampleItem.className = 'sample-item';
+                    
+                    const img = document.createElement('img');
+                    img.src = `/emotion/${file}`;
+                    img.alt = file;
+                    img.title = file.replace(/\.[^/.]+$/, "").replace(/[_-]/g, ' '); // Tooltip instead of label
+                    
+                    sampleItem.appendChild(img);
+                    
+            sampleItem.addEventListener('click', async () => {
+                        try {
+                            const response = await fetch(`/emotion/${file}`);
+                            const blob = await response.blob();
+                            const base64 = await blobToDataURL(blob);
+                            
+                            capturedImage = base64;
+                            
+                            // Enable analyze button
+                            const analyzeBtn = document.getElementById('analyzeEmotion');
+                            if (analyzeBtn) analyzeBtn.disabled = false;
+                            
+                            // Show preview in video wrapper
+                            const videoWrapper = document.getElementById('videoWrapper');
+                            if (videoWrapper) {
+                                videoWrapper.innerHTML = `
+                                    <img src="${base64}" alt="Sample" 
+                                         style="width: 100%; max-width: 400px; max-height: 300px; 
+                                                border-radius: var(--radius-xl); margin: 0 auto; 
+                                                display: block; object-fit: cover;">
+                                `;
+                            }
+                            
+                            // Update button states
+                            const startBtn = document.getElementById('startCamera');
+                            const captureBtn = document.getElementById('capturePhoto');
+                            
+                            if (startBtn) startBtn.disabled = true;
+                            if (captureBtn) captureBtn.disabled = true;
+                            
+                            // Close sample modal and reset button text
+                            sampleModal.style.display = 'none';
+                            sampleBtnText.textContent = 'Show Sample Images';
+                            
+                            showError('Sample image loaded successfully!', true);
+                            
+                        } catch (error) {
+                            console.error('Error loading sample image:', error);
+                            showError('Failed to load sample image');
+                        }
+                    });
+                    
+                    sampleGrid.appendChild(sampleItem);
+                });
+                
+            } catch (error) {
+                console.error('Error loading sample images:', error);
+                showError('Failed to load sample images');
+            }
+        }
+
+        // File Upload Functionality
+        uploadFileBtn.addEventListener('click', () => {
+            fileInput.click();
+        });
+
+        fileInput.addEventListener('change', async (event) => {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            // Validate file type
+            if (!file.type.startsWith('image/')) {
+                showError('Please select a valid image file');
+                return;
+            }
+
+            // Validate file size (max 5MB)
+            if (file.size > 5 * 1024 * 1024) {
+                showError('Image size should be less than 5MB');
+                return;
+            }
+
+            try {
+                // Convert file to base64
+                const reader = new FileReader();
+                reader.onload = async (e) => {
+                    const base64 = e.target.result;
+                    capturedImage = base64;
+
+                    // Enable analyze button
+                    analyzeEmotionBtn.disabled = false;
+
+                    // Show preview in video wrapper
+                    const videoWrapper = document.getElementById('videoWrapper');
+                    if (videoWrapper) {
+                        videoWrapper.innerHTML = `
+                            <img src="${base64}" alt="Uploaded" 
+                                 style="width: 100%; max-width: 400px; max-height: 300px; 
+                                        border-radius: var(--radius-xl); margin: 0 auto; 
+                                        display: block; object-fit: cover;">
+                        `;
+                    }
+
+                    // Stop camera if running
+                    if (stream) {
+                        stream.getTracks().forEach(track => track.stop());
+                        stream = null;
+                    }
+
+                    // Update button states
+                    startCameraBtn.disabled = true;
+                    capturePhotoBtn.disabled = true;
+
+                    showError('Image uploaded successfully!', true);
+                };
+                reader.onerror = () => {
+                    showError('Failed to read image file');
+                };
+                reader.readAsDataURL(file);
+
+            } catch (error) {
+                console.error('Error uploading image:', error);
+                showError('Failed to upload image');
+            }
+
+            // Reset file input so same file can be selected again
+            fileInput.value = '';
+        });
+
+        // Modal Functionality
+        function showStressModal(result) {
+            modalResults.innerHTML = '';
+            
+            const stressSection = document.createElement('div');
+            stressSection.className = 'stress-result';
+            
+            // Combined score progress bar
+            const scorePercentage = result.combined_score;
+            const scoreColor = scorePercentage <= 35 ? '#10b981' : scorePercentage <= 60 ? '#f59e0b' : '#ef4444';
+            
+            let detailedScoresHTML = '';
+            if (result.detailed_scores) {
+                detailedScoresHTML = `
+                    <div style="margin-top: 20px;">
+                        <h4 style="margin-bottom: 15px; color: #667eea;">Detailed Factor Analysis</h4>
+                `;
+                
+                for (const [factor, data] of Object.entries(result.detailed_scores)) {
+                    const factorLabel = factor.charAt(0).toUpperCase() + factor.slice(1).replace('_', ' ');
+                    const maxScore = factor === 'age' || factor === 'exercise' ? 25 : factor === 'sleep' ? 30 : 20;
+                    const percentage = (data.score / maxScore) * 100;
+                    const barColor = percentage <= 40 ? '#10b981' : percentage <= 70 ? '#f59e0b' : '#ef4444';
+                    
+                    detailedScoresHTML += `
+                        <div style="margin-bottom: 15px;">
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                                <span style="font-weight: 600;">${factorLabel}</span>
+                                <span style="color: ${barColor}; font-weight: 700;">${data.score}/${maxScore}</span>
+                            </div>
+                            <div style="background: #e5e7eb; border-radius: 10px; height: 12px; overflow: hidden;">
+                                <div style="width: ${percentage}%; height: 100%; background: ${barColor}; transition: width 0.3s ease;"></div>
+                            </div>
+                            <div style="font-size: 0.85em; color: #6b7280; margin-top: 3px;">${data.description}</div>
+                        </div>
+                    `;
+                }
+                
+                detailedScoresHTML += '</div>';
+            }
+            
+            stressSection.innerHTML = `
+                <h3><i class="fas fa-heartbeat"></i> Stress Level Analysis</h3>
+                <div style="text-align: center; margin: 20px 0;">
+                    <div style="font-size: 3em; font-weight: bold; color: ${scoreColor};">${result.stress_score ? result.stress_score.toFixed(1) : result.combined_score}/100</div>
+                    <div style="font-size: 0.9em; color: #6b7280; margin-top: 5px;">AI-Predicted Stress Score</div>
+                </div>
+                <div style="background: #e5e7eb; border-radius: 15px; height: 20px; overflow: hidden; margin: 20px 0;">
+                    <div style="width: ${result.stress_score ? result.stress_score : scorePercentage}%; height: 100%; background: ${scoreColor}; transition: width 0.5s ease;"></div>
+                </div>
+                <div class="stress-level stress-${result.stress_level.toLowerCase()}">${result.stress_level} Stress</div>
+                <p style="margin: 15px 0; font-size: 0.95em; line-height: 1.6;">
+                    ${result.stress_score ? 'Your AI-predicted stress score indicates <strong>' + result.stress_level.toLowerCase() + ' stress levels</strong>. (Score: ' + result.stress_score.toFixed(2) + '/100)' : result.overall_description}
+                </p>
+                ${detailedScoresHTML}
+            `;
+            modalResults.appendChild(stressSection);
+            
+            resultsModal.style.display = 'block';
+        }
+
+        function showEmotionModal(emotionResult) {
+            modalResults.innerHTML = '';
+            
+            const emotionSection = document.createElement('div');
+            emotionSection.innerHTML = `
+                <h3><i class="fas fa-smile"></i> Facial Emotion Analysis</h3>
+                <div id="modalEmotionResults"></div>
+            `;
+            modalResults.appendChild(emotionSection);
+            
+            // Display emotion results in modal
+            const modalEmotionContainer = document.getElementById('modalEmotionResults');
+            modalEmotionContainer.innerHTML = '';
+            
+            Object.entries(emotionResult.emotions).forEach(([emotion, percentage]) => {
+                const emotionDiv = document.createElement('div');
+                emotionDiv.className = 'emotion-bar';
+                
+                const isDominant = emotion === emotionResult.dominant_emotion;
+                const barColor = isDominant ? 'linear-gradient(90deg, #ff6b6b, #ee5a24)' : 'linear-gradient(90deg, #667eea, #764ba2)';
+                
+                emotionDiv.innerHTML = `
+                    <div class="emotion-label">
+                        <span>${emotion}</span>
+                        <span>${isDominant ? '★' : ''}</span>
+                    </div>
+                    <div class="progress-container">
+                        <div class="progress-bar" style="width: ${percentage}%; background: ${barColor}">
+                            ${percentage.toFixed(1)}%
+                        </div>
+                    </div>
+                `;
+                
+                modalEmotionContainer.appendChild(emotionDiv);
+            });
+            
+            resultsModal.style.display = 'block';
+        }
+
+        function showCombinedModal(stressResult, emotionResult) {
+            modalResults.innerHTML = '';
+            
+            // Stress Result Section
+            if (stressResult) {
+                const result = stressResult;
+                const stressSection = document.createElement('div');
+                stressSection.className = 'stress-result';
+                
+                const scorePercentage = result.combined_score || 0;
+                const scoreColor = scorePercentage <= 35 ? '#10b981' : scorePercentage <= 60 ? '#f59e0b' : '#ef4444';
+                const stressLevel = result.stress_level || stressResult;
+                
+                let detailedScoresHTML = '';
+                if (result.detailed_scores) {
+                    detailedScoresHTML = `
+                        <div style="margin-top: 20px;">
+                            <h4 style="margin-bottom: 15px; color: #667eea;">Detailed Factor Analysis</h4>
+                    `;
+                    
+                    for (const [factor, data] of Object.entries(result.detailed_scores)) {
+                        const factorLabel = factor.charAt(0).toUpperCase() + factor.slice(1).replace('_', ' ');
+                        const maxScore = factor === 'age' || factor === 'exercise' ? 25 : factor === 'sleep' ? 30 : 20;
+                        const percentage = (data.score / maxScore) * 100;
+                        const barColor = percentage <= 40 ? '#10b981' : percentage <= 70 ? '#f59e0b' : '#ef4444';
+                        
+                        detailedScoresHTML += `
+                            <div style="margin-bottom: 15px;">
+                                <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                                    <span style="font-weight: 600;">${factorLabel}</span>
+                                    <span style="color: ${barColor}; font-weight: 700;">${data.score}/${maxScore}</span>
+                                </div>
+                                <div style="background: #e5e7eb; border-radius: 10px; height: 12px; overflow: hidden;">
+                                    <div style="width: ${percentage}%; height: 100%; background: ${barColor}; transition: width 0.3s ease;"></div>
+                                </div>
+                                <div style="font-size: 0.85em; color: #6b7280; margin-top: 3px;">${data.description}</div>
+                            </div>
+                        `;
+                    }
+                    
+                    detailedScoresHTML += '</div>';
+                }
+                
+                stressSection.innerHTML = `
+                    <h3><i class="fas fa-heartbeat"></i> Stress Level Analysis</h3>
+                    <div style="text-align: center; margin: 20px 0;">
+                        <div style="font-size: 2.5em; font-weight: bold; color: ${scoreColor};">${scorePercentage}/100</div>
+                        <div style="font-size: 0.9em; color: #6b7280; margin-top: 5px;">Combined Stress Score</div>
+                    </div>
+                    <div style="background: #e5e7eb; border-radius: 15px; height: 20px; overflow: hidden; margin: 20px 0;">
+                        <div style="width: ${scorePercentage}%; height: 100%; background: ${scoreColor}; transition: width 0.5s ease;"></div>
+                    </div>
+                    <div class="stress-level stress-${stressLevel.toLowerCase()}">${stressLevel} Stress</div>
+                    <p style="margin: 15px 0; font-size: 0.95em; line-height: 1.6;">${result.overall_description || 'Based on your lifestyle data'}</p>
+                    ${detailedScoresHTML}
+                `;
+                modalResults.appendChild(stressSection);
+            }
+            
+            // Emotion Result Section
+            if (emotionResult) {
+                const emotionSection = document.createElement('div');
+                emotionSection.innerHTML = `
+                    <h3><i class="fas fa-smile"></i> Facial Emotion Analysis</h3>
+                    <div id="modalEmotionResults"></div>
+                `;
+                modalResults.appendChild(emotionSection);
+                
+                // Display emotion results in modal
+                const modalEmotionContainer = document.getElementById('modalEmotionResults');
+                modalEmotionContainer.innerHTML = '';
+                
+                Object.entries(emotionResult.emotions).forEach(([emotion, percentage]) => {
+                    const emotionDiv = document.createElement('div');
+                    emotionDiv.className = 'emotion-bar';
+                    
+                    const isDominant = emotion === emotionResult.dominant_emotion;
+                    const barColor = isDominant ? 'linear-gradient(90deg, #ff6b6b, #ee5a24)' : 'linear-gradient(90deg, #667eea, #764ba2)';
+                    
+                    emotionDiv.innerHTML = `
+                        <div class="emotion-label">
+                            <span>${emotion}</span>
+                            <span>${isDominant ? '★' : ''}</span>
+                        </div>
+                        <div class="progress-container">
+                            <div class="progress-bar" style="width: ${percentage}%; background: ${barColor}">
+                                ${percentage.toFixed(1)}%
+                            </div>
+                        </div>
+                    `;
+                    
+                    modalEmotionContainer.appendChild(emotionDiv);
+                });
+            }
+            
+            resultsModal.style.display = 'block';
+        }
+
+        // Show combined analysis modal with emotion-adjusted stress score
+        function showCombinedAnalysisModal(combined) {
+            modalResults.innerHTML = '';
+            
+            const scorePercentage = combined.final_stress_score;
+            const scoreColor = scorePercentage <= 35 ? '#10b981' : scorePercentage <= 60 ? '#f59e0b' : '#ef4444';
+            
+            let html = `
+                <div class="stress-result" style="margin-bottom: 30px;">
+                    <h3 style="text-align: center; color: #667eea; margin-bottom: 20px;">
+                        <i class="fas fa-chart-pie"></i> Combined Stress Analysis
+                    </h3>
+                    <div style="text-align: center; margin: 20px 0;">
+                        <div style="font-size: 3.5em; font-weight: bold; color: ${scoreColor};">${combined.final_stress_score}/100</div>
+                        <div style="font-size: 1em; color: #6b7280; margin-top: 5px;">Final Combined Stress Score</div>
+                        <div style="font-size: 0.9em; color: #667eea; margin-top: 10px; font-style: italic;">
+                            (Lifestyle Factors + Emotional State)
+                        </div>
+                    </div>
+                    <div style="background: #e5e7eb; border-radius: 15px; height: 25px; overflow: hidden; margin: 20px 0;">
+                        <div style="width: ${scorePercentage}%; height: 100%; background: ${scoreColor}; transition: width 0.5s ease;"></div>
+                    </div>
+                    <div class="stress-level stress-${combined.final_stress_level.toLowerCase()}" style="font-size: 1.2em;">
+                        ${combined.final_stress_level} Stress
+                    </div>
+                    <p style="margin: 20px 0; font-size: 1em; line-height: 1.8; text-align: center; padding: 15px; background: #f3f4f6; border-radius: 10px;">
+                        ${combined.overall_assessment}
+                    </p>
+                </div>
+                
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 30px;">
+                    <div style="background: #f9fafb; padding: 20px; border-radius: 15px; border: 2px solid #e5e7eb;">
+                        <h4 style="color: #667eea; margin-bottom: 15px;">
+                            <i class="fas fa-heartbeat"></i> Lifestyle Factors
+                        </h4>
+                        <div style="text-align: center; margin-bottom: 10px;">
+                            <span style="font-size: 2em; font-weight: bold; color: #667eea;">${combined.lifestyle_score}/100</span>
+                        </div>
+                        <p style="font-size: 0.9em; color: #6b7280; text-align: center;">${combined.lifestyle_impact}</p>
+                    </div>
+                    
+                    <div style="background: #f9fafb; padding: 20px; border-radius: 15px; border: 2px solid #e5e7eb;">
+                        <h4 style="color: #4ecdc4; margin-bottom: 15px;">
+                            <i class="fas fa-smile"></i> Emotional State
+                        </h4>
+                        <div style="text-align: center; margin-bottom: 10px;">
+                            <span style="font-size: 1.5em; font-weight: bold; color: #4ecdc4;">${combined.dominant_emotion}</span>
+                        </div>
+                        <div style="text-align: center; margin-bottom: 10px;">
+                            <span style="font-size: 1.2em; color: ${combined.emotion_adjustment > 0 ? '#ef4444' : '#10b981'};">
+                                ${combined.emotion_adjustment > 0 ? '+' : ''}${combined.emotion_adjustment} points
+                            </span>
+                        </div>
+                        <p style="font-size: 0.9em; color: #6b7280; text-align: center;">${combined.emotion_impact}</p>
+                    </div>
+                </div>
+                
+                <div style="margin-top: 30px; padding: 20px; background: linear-gradient(135deg, #667eea22, #764ba222); border-radius: 15px; border: 2px solid #667eea;">
+                    <h4 style="color: #667eea; margin-bottom: 15px;">
+                        <i class="fas fa-lightbulb"></i> Personalized Recommendations
+                    </h4>
+                    <ul style="list-style: none; padding: 0; margin: 0;">
+            `;
+            
+            combined.recommendations.forEach(rec => {
+                html += `<li style="margin-bottom: 10px; padding-left: 25px; position: relative;">
+                    <i class="fas fa-check-circle" style="position: absolute; left: 0; color: #10b981;"></i>
+                    ${rec}
+                </li>`;
+            });
+            
+            html += `
+                    </ul>
+                </div>
+            `;
+            
+            modalResults.innerHTML = html;
+            resultsModal.style.display = 'block';
+        }
+
+        // --- Added: Helper functions to update new Results Dock ---
+function setGauge(percent){
+  const gauge = document.getElementById('stressGauge');
+  const valEl = document.getElementById('stressGaugeValue');
+  let p = isNaN(percent) ? 0 : Math.max(0, Math.min(100, percent));
+  const hue = p < 33 ? 152 : p < 66 ? 38 : 0; // green / amber / red hues
+  gauge.style.background = `conic-gradient(hsl(${hue} 85% 55%) ${p*3.6}deg, var(--neutral-200) 0deg)`;
+  valEl.textContent = p.toFixed(0);
+}
+
+function updateStressSummary(result){
+  if(!result) return;
+  const score = result.stress_score || result.combined_score || 0;
+  setGauge(score);
+  const badge = document.getElementById('stressLevelBadge');
+  const level = (result.stress_level || '--').toLowerCase();
+  badge.textContent = `LEVEL: ${level.toUpperCase()}`;
+  badge.className = 'badge-level ' + (level === 'low' ? 'badge-low' : level === 'medium' || level === 'Medium' ? 'badge-medium' : 'badge-high');
+  maybeEnableCombined();
+}
+
+function updateEmotionSummary(emotionResult){
+  const container = document.getElementById('emotionMiniList');
+  if(!emotionResult || !emotionResult.emotions){ container.innerHTML = '<div style="font-size:0.65rem; opacity:0.6;">No data yet</div>'; return; }
+  const entries = Object.entries(emotionResult.emotions).sort((a,b)=>b[1]-a[1]).slice(0,3);
+  container.innerHTML = entries.map(([emo,val])=>{
+    return `<div class="emotion-mini-item"><span>${emo}</span><span>${val.toFixed(1)}%</span></div>`;
+  }).join('');
+  maybeEnableCombined();
+}
+
+function maybeEnableCombined(){
+  const btn = document.getElementById('qaCombined');
+  if(window.currentStressResult && window.currentEmotionResult){ 
+    btn.disabled = false; 
+  } else { 
+    btn.disabled = true; 
+  }
+}
+
+// Extend existing display functions if present
+const _origDisplayStressResult = window.displayStressResult;
+window.displayStressResult = function(result){
+  if(_origDisplayStressResult) _origDisplayStressResult(result);
+  updateStressSummary(result);
+}
+
+const _origEmotionResults = window.displayEmotionResults;
+window.displayEmotionResults = function(emotions, dominant){
+  if(_origEmotionResults) _origEmotionResults(emotions, dominant);
+  updateEmotionSummary({ emotions, dominant_emotion: dominant });
+}
+
+// Quick action handlers - Reset functions
+function resetStress(){
+  const f = document.getElementById('stressForm');
+  if(f) f.reset();
+  window.currentStressResult = null;
+  setGauge(0);
+  document.getElementById('stressLevelBadge').textContent = 'LEVEL: --';
+  const stressInline = document.getElementById('stressResultsInline');
+  if(stressInline) stressInline.style.display = 'none';
+  maybeEnableCombined();
+}
+
+function resetEmotion(){
+  window.currentEmotionResult = null;
+  document.getElementById('emotionMiniList').innerHTML = '<div style="font-size:0.65rem; opacity:0.6;">No data yet</div>';
+  const emotionInline = document.getElementById('emotionResultsInline');
+  if(emotionInline) emotionInline.style.display = 'none';
+  
+  // Clear captured image and reset camera UI
+  capturedImage = null;
+  const videoWrapper = document.getElementById('videoWrapper');
+  const video = document.getElementById('video');
+  if(videoWrapper && video){
+    videoWrapper.innerHTML = '<video id="video" autoplay></video>';
+  }
+  
+  // Reset button states
+  const startBtn = document.getElementById('startCamera');
+  const captureBtn = document.getElementById('capturePhoto');
+  const analyzeBtn = document.getElementById('analyzeEmotion');
+  
+  if(startBtn) startBtn.disabled = false;
+  if(captureBtn) captureBtn.disabled = true;
+  if(analyzeBtn) analyzeBtn.disabled = true;
+  
+  maybeEnableCombined();
+}
+
+function resetBoth(){
+  resetStress();
+  resetEmotion();
+}
+
+document.getElementById('qaResetStress').addEventListener('click', resetStress);
+document.getElementById('qaResetEmotion').addEventListener('click', resetEmotion);
+document.getElementById('qaResetBoth').addEventListener('click', resetBoth);
+
+document.getElementById('qaCombined').addEventListener('click', async ()=>{
+  if(!window.currentStressResult || !window.currentEmotionResult){
+    alert('Please complete both Stress Analysis and Emotion Analysis first!');
+    return;
+  }
+  
+  loading.style.display = 'block';
+  error.style.display = 'none';
+  
+  try {
+    const response = await fetch('/combined_analysis', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        stress_data: window.currentStressResult,
+        emotion_data: window.currentEmotionResult
+      })
+    });
+    
+    const combined = await response.json();
+    loading.style.display = 'none';
+    
+    if(response.ok){
+      showCombinedAnalysisModal(combined);
+    } else {
+      throw new Error(combined.error || 'Failed to perform combined analysis');
+    }
+  } catch(err){
+    loading.style.display = 'none';
+    error.style.display = 'block';
+    error.textContent = 'Error: ' + err.message;
+    console.error('Combined analysis error:', err);
+  }
+});
+
+// Initialize gauge
+setGauge(0);
+
+// Initialize global state storage for results
+window.currentStressResult = null;
+window.currentEmotionResult = null;
+
+// ===== STRESS FORM SUBMISSION HANDLER =====
+stressForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    loading.style.display = 'block';
+    error.style.display = 'none';
+    
+    const formData = {
+        age: parseInt(stressForm.age.value),
+        gender: stressForm.gender.value,
+        exercise_level: stressForm.exercise.value,
+        sleep_hours: parseFloat(stressForm.sleep.value),
+        work_hours: parseFloat(stressForm.work.value)
+    };
+    
+    try {
+        const response = await fetch('/predict_stress', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(formData)
+        });
+        
+        const result = await response.json();
+        loading.style.display = 'none';
+        
+        if (response.ok) {
+            window.currentStressResult = result;
+            displayStressResultInline(result);
+            updateStressSummary(result);
+        } else {
+            throw new Error(result.error || 'Failed to predict stress');
+        }
+    } catch (err) {
+        loading.style.display = 'none';
+        error.style.display = 'block';
+        error.textContent = 'Error: ' + err.message;
+        console.error('Stress prediction error:', err);
+    }
+});
+
+// Display stress result inline
+function displayStressResultInline(result) {
+    const container = document.getElementById('stressResultsInline');
+    const stressLevel = result.stress_level || 'Unknown';
+    const stressScore = result.stress_score || result.combined_score || 0;
+    
+    const stressClass = stressLevel.toLowerCase() === 'low' ? 'stress-low' : 
+                        stressLevel.toLowerCase() === 'medium' || stressLevel.toLowerCase() === 'Medium' ? 'stress-Medium' : 
+                        'stress-high';
+    
+    container.innerHTML = `
+        <h3><i class="fas fa-heartbeat"></i> Stress Analysis Result</h3>
+        <div class="stress-level ${stressClass}">${stressLevel} Stress</div>
+        <p style="margin: 15px 0;">Stress Score: <strong>${stressScore.toFixed(1)}/100</strong></p>
+        <p style="font-size: 0.9em; color: var(--neutral-600);">
+            ${stressLevel === 'Low' ? 'Great! Your lifestyle factors are well-balanced.' : 
+              stressLevel === 'Medium' || stressLevel === 'Medium' ? 'Medium stress detected. Consider improving sleep and exercise.' : 
+              'High stress alert! Prioritize rest and work-life balance.'}
+        </p>
+    `;
+    container.style.display = 'block';
+}
+
+// ===== CAMERA & EMOTION HANDLERS =====
+let cameraStarted = false;
+
+startCameraBtn.addEventListener('click', async () => {
+    try {
+        stream = await navigator.mediaDevices.getUserMedia({ 
+            video: { facingMode: 'user', width: 640, height: 480 } 
+        });
+        video.srcObject = stream;
+        video.play();
+        cameraStarted = true;
+        
+        startCameraBtn.disabled = true;
+        capturePhotoBtn.disabled = false;
+        
+        console.log('Camera started successfully');
+    } catch (err) {
+        error.style.display = 'block';
+        error.textContent = 'Camera access denied: ' + err.message;
+        console.error('Camera error:', err);
+    }
+});
+
+capturePhotoBtn.addEventListener('click', () => {
+    if (!cameraStarted) {
+        alert('Please start the camera first!');
+        return;
+    }
+    
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(video, 0, 0);
+    
+    capturedImage = canvas.toDataURL('image/jpeg');
+    
+    // Display captured image
+    const videoWrapper = document.getElementById('videoWrapper');
+    videoWrapper.innerHTML = `<img src="${capturedImage}" alt="Captured" style="max-width: 100%; border-radius: var(--radius-xl);">`;
+    
+    // Stop camera stream
+    if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+        cameraStarted = false;
+    }
+    
+    capturePhotoBtn.disabled = true;
+    analyzeEmotionBtn.disabled = false;
+    console.log('Photo captured successfully');
+});
+
+analyzeEmotionBtn.addEventListener('click', async () => {
+    if (!capturedImage) {
+        alert('Please capture a photo first!');
+        return;
+    }
+    
+    loading.style.display = 'block';
+    error.style.display = 'none';
+    
+    try {
+        const response = await fetch('/analyze_emotion', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ image: capturedImage })
+        });
+        
+        const result = await response.json();
+        loading.style.display = 'none';
+        
+        if (response.ok) {
+            window.currentEmotionResult = result;
+            displayEmotionResultsInline(result);
+            updateEmotionSummary(result);
+        } else {
+            throw new Error(result.error || 'Failed to analyze emotion');
+        }
+    } catch (err) {
+        loading.style.display = 'none';
+        error.style.display = 'block';
+        error.textContent = 'Error: ' + err.message;
+        console.error('Emotion analysis error:', err);
+    }
+});
+
+// Display emotion results inline
+function displayEmotionResultsInline(emotionResult) {
+    const container = document.getElementById('emotionResultsInline');
+    const emotions = emotionResult.emotions;
+    const dominant = emotionResult.dominant_emotion;
+    
+    let html = `<h3><i class="fas fa-smile"></i> Emotion Analysis</h3>`;
+    html += `<p style="margin: 10px 0; font-size: 1.1em;"><strong>Dominant Emotion:</strong> <span style="color: var(--primary);">${dominant}</span></p>`;
+    html += `<div class="emotion-bars">`;
+    
+    // Sort emotions by percentage
+    const sortedEmotions = Object.entries(emotions).sort((a, b) => b[1] - a[1]);
+    
+    sortedEmotions.forEach(([emotion, percentage]) => {
+        const isDominant = emotion === dominant;
+        const barColor = isDominant ? 'linear-gradient(90deg, #ff6b6b, #ee5a24)' : 'linear-gradient(90deg, #667eea, #764ba2)';
+        
+        html += `
+            <div class="emotion-bar">
+                <div class="emotion-label">
+                    <span>${emotion}</span>
+                    <span>${percentage.toFixed(1)}%</span>
+                </div>
+                <div class="progress-container">
+                    <div class="progress-bar" style="width: ${percentage}%; background: ${barColor};">
+                        ${percentage > 10 ? percentage.toFixed(0) + '%' : ''}
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+    
+    html += `</div>`;
+    container.innerHTML = html;
+    container.style.display = 'block';
+}
+
+// Combined analysis handler is already attached to qaCombined button above
+
+// ===== MODAL CLOSE HANDLERS =====
+closeModal.addEventListener('click', () => {
+    resultsModal.style.display = 'none';
+});
+
+window.addEventListener('click', (event) => {
+    if (event.target === resultsModal) {
+        resultsModal.style.display = 'none';
+    }
+});
+
+// Initialize theme on page load
+initTheme();
+
+console.log('All event handlers initialized successfully');
+    </script>
+</body>
+</html>

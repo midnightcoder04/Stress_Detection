@@ -1,0 +1,28 @@
+# models/
+
+# Python virtual environments
+.venv/
+env/
+SD_venv/
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+
+# IDEs and editors
+.vscode/
+.idea/
+*.sublime-workspace
+
+# macOS files
+.DS_Store
+
+# Jupyter Notebooks checkpoints and outputs
+.ipynb_checkpoints/
+.pth
